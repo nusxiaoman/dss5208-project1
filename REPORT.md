@@ -18,7 +18,7 @@ Include at least one figure per activation:
 
 ![ReLU history](plots/trainhist_relu_bs256_n256_P4.png)
 ![tanh history](plots/trainhist_tanh_bs128_n128_P4.png)
-![sigmoid history](plots/trainhist_sigmoid_bs128_n128_P4.png)
+![sigmoid history](plots/trainhist_sigmoid_bs256_n128_P4.png)
 
 ## 3. RMSE (train/test) vs batch size
 Best per (σ, M):
