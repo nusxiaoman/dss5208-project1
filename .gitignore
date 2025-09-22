@@ -1,0 +1,17 @@
+﻿# Python cache
+__pycache__/
+*.pyc
+
+# BIG raw data - do not push
+nytaxi2022.csv
+nytaxi2022_cleaned.npz
+*.npz
+*.npy
+sample_data/
+
+# Model artifacts
+model_final.npz
+
+# Ignore all CSVs by default, but keep results tables
+*.csv
+!results/*.csv
