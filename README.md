@@ -21,6 +21,7 @@ Includes: σ×M sweep (3 activations × 5 batch sizes), training histories, RMSE
 ├─ plots/                    # Figures (kept in repo)
 ├─ REPORT.md                 # Project write-up
 └─ .gitignore                # Excludes raw/large data + caches
+```
 
 Requirements
 
@@ -32,20 +33,26 @@ MS-MPI (mpiexec on PATH)
 
 Python packages: numpy, pandas, matplotlib, mpi4py
 
+```powershell
 py -m pip install --upgrade pip
 py -m pip install numpy pandas matplotlib mpi4py
 # verify
 Get-Command mpiexec
 mpiexec -n 2 py -c "from mpi4py import MPI; print('rank', MPI.COMM_WORLD.Get_rank(), 'of', MPI.COMM_WORLD.Get_size())"
+```
+
 
 Data
 
 Prepare once (produces nytaxi2022_cleaned.npz, not committed):
 
+```powershell
 py .\data_prep.py --input_path .\nytaxi2022.csv --output_path .\nytaxi2022_cleaned.npz
+```
 
 Quick start
 1) Smoke test one run
+```powershell
 mpiexec -n 4 py .\train_mpi.py --data .\nytaxi2022_cleaned.npz `
   --activation relu --batch 256 --hidden 256 --lr 1e-3 `
   --epochs 1 --eval_every 1000 --eval_sample 2000000 --eval_block 100000 --seed 123
@@ -53,12 +60,13 @@ mpiexec -n 4 py .\train_mpi.py --data .\nytaxi2022_cleaned.npz `
 py .\plot_history.py --in_csv .\history.csv `
   --out_png .\plots\training_history_smoke.png `
   --title "Smoke test"
-
+```
 2) σ×M sweep (P=4)
+```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\sweep.ps1
 py .\summarize_results.py
-
+```
 
 Outputs:
 
@@ -71,11 +79,11 @@ histories/history_<tag>.csv, plots/trainhist_<tag>.png
 3) Strong-scaling runs (P = 1,2,4,8)
 
 Edit scaling.ps1 to pick your (activation, batch, hidden), then:
-
+```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\scaling.ps1
 py .\scaling_summary.py
-
+```
 
 Outputs:
 
@@ -84,12 +92,12 @@ results/scaling_table.csv
 plots/scaling_time.png, plots/scaling_speedup.png, plots/scaling_efficiency.png
 
 Tip (optional, helps P≥8 on one node):
-
+```powershell
 $env:OPENBLAS_NUM_THREADS='1'
 $env:MKL_NUM_THREADS='1'
 $env:NUMEXPR_NUM_THREADS='1'
 $env:OMP_NUM_THREADS='1'
-
+```
 Results (example)
 
 Insert your own figures, e.g.:
@@ -113,7 +121,3 @@ No-copy loads for float32 arrays to avoid multi-GB duplicates.
 Explicit biases (no giant temporary concatenations).
 
 Early-stop patience on R(θ) trend.
-
-Git notes
-
-This repo intentionally excludes large files:
