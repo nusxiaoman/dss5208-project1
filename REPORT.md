@@ -113,7 +113,7 @@ relu,256,256,0.001,8,104.511,85.8499,119.6802,1.5109,0.1889
 
 ---
 
-## 6) Delieverables 
+## 6) Deliverables 
 ## Parameters Chosen
 
 - **Activations (σ):** ReLU, Tanh, Sigmoid  
@@ -185,7 +185,7 @@ Summary plots:
 > Notes:
 > - Test RMSE varies slightly with P due to stochasticity and single-epoch training, but differences are small (±0.02).  
 > - The strong-scaling runs for **ReLU, M=256, n=256** showed time improvements up to P=4 (65.836 s) with diminishing returns at P=8 (104.511 s), while test RMSE remained in the ~119.65–119.68 range.
-
+p
 ---
 
 ## Training Times for Different Numbers of Processes (Strong Scaling)
