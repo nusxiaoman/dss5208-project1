@@ -12,6 +12,17 @@ sample_data/
 # Model artifacts
 model_final.npz
 
+<<<<<<< Updated upstream
 # Ignore all CSVs by default, but keep results tables
 *.csv
 !results/*.csv
+=======
+# PowerShell execution cache (sometimes created)
+*.ps1.tmp
+
+histories/
+histories.local/
+memmap_data/
+memmap_data.local/
+data/
+>>>>>>> Stashed changes

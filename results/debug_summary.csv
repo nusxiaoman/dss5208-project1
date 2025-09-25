@@ -1,0 +1,2 @@
+activation,batch,hidden,lr,procs,train_time,rmse_train,rmse_test
+relu,256,256,0.001,4,240.08085100003518,85.83532501642229,119.6679825904059
