@@ -1,49 +1,62 @@
-﻿import pandas as pd, numpy as np, matplotlib.pyplot as plt
+﻿# scaling_summary.py — strong-scaling plots from scaling_table.csv
+import os
 from pathlib import Path
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 
-Path("results").mkdir(exist_ok=True)
-Path("plots").mkdir(exist_ok=True)
+ROOT = Path(__file__).resolve().parent
+PLOTS = ROOT / "plots"
+RESULTS = ROOT / "results"
+PLOTS.mkdir(parents=True, exist_ok=True)
+RESULTS.mkdir(parents=True, exist_ok=True)
 
-cols = ["activation","batch","hidden","lr","procs","train_time","rmse_train","rmse_test"]
-df = pd.read_csv("run_summary.csv", header=None, names=cols)
-
-# de-dup repeated configs, keep the last occurrence
-df = df.drop_duplicates(subset=["activation","batch","hidden","lr","procs"], keep="last")
-
-# pick the overall-best triple (lowest test RMSE, tie-break by train_time)
-best = df.sort_values(["rmse_test","train_time"]).iloc[0]
-mask = (df.activation==best.activation) & (df.batch==best.batch) & (df.hidden==best.hidden) & (df.lr==best.lr)
-sc = df[mask].sort_values("procs").copy()
-
-# compute speedup & efficiency
-if (sc["procs"]==1).any():
-    t1 = float(sc.loc[sc["procs"]==1,"train_time"].iloc[0])
-    sc["speedup"] = t1 / sc["train_time"]
+candidates = [RESULTS / "scaling_table.csv", ROOT / "scaling_table.csv"]
+for c in candidates:
+    if c.exists():
+        sc_path = c
+        break
 else:
-    p0 = int(sc["procs"].min()); t0 = float(sc.loc[sc["procs"]==p0,"train_time"].iloc[0])
-    sc["speedup"] = (t0 / sc["train_time"]) * p0  # normalize to an implied 1-proc baseline
+    raise FileNotFoundError("scaling_table.csv not found in results/ or repo root")
 
-sc["efficiency"] = sc["speedup"] / sc["procs"]
+df = pd.read_csv(sc_path)
 
-sc.to_csv("results/scaling_table.csv", index=False)
+# normalize columns
+df.columns = [c.strip().lower() for c in df.columns]
+needed = {"procs","train_time"}
+if not needed.issubset(df.columns):
+    raise ValueError(f"scaling_table.csv must contain {needed}")
 
-# plots
-plt.figure()
-plt.plot(sc["procs"], sc["train_time"], marker="o")
-plt.xlabel("Processes (P)"); plt.ylabel("Train time (s)")
-plt.title(f"Scaling time: {best.activation}, M={int(best.batch)}, n={int(best.hidden)}")
-plt.tight_layout(); plt.savefig("plots/scaling_time.png", dpi=150)
+# ensure numeric
+df["procs"] = pd.to_numeric(df["procs"], errors="coerce")
+df["train_time"] = pd.to_numeric(df["train_time"], errors="coerce")
+df = df.dropna(subset=["procs","train_time"])
 
-plt.figure()
-plt.plot(sc["procs"], sc["speedup"], marker="o")
-plt.xlabel("Processes (P)"); plt.ylabel("Speedup (T1/Tp)")
-plt.title(f"Speedup: {best.activation}, M={int(best.batch)}, n={int(best.hidden)}")
-plt.tight_layout(); plt.savefig("plots/scaling_speedup.png", dpi=150)
+# compute speedup/efficiency if missing
+if "speedup" not in df.columns or df["speedup"].isna().all():
+    t1 = df.loc[df["procs"]==1, "train_time"]
+    if len(t1)==0:
+        raise ValueError("No P=1 baseline found to compute speedup/efficiency.")
+    t1 = float(t1.iloc[0])
+    df["speedup"] = t1 / df["train_time"]
+if "efficiency" not in df.columns or df["efficiency"].isna().all():
+    df["efficiency"] = df["speedup"] / df["procs"]
 
-plt.figure()
-plt.plot(sc["procs"], sc["efficiency"]*100, marker="o")
-plt.xlabel("Processes (P)"); plt.ylabel("Parallel efficiency (%)")
-plt.title(f"Efficiency: {best.activation}, M={int(best.batch)}, n={int(best.hidden)}")
-plt.tight_layout(); plt.savefig("plots/scaling_efficiency.png", dpi=150)
+df = df.sort_values("procs")
 
-print("Wrote results/scaling_table.csv and plots/scaling_*.png")
+def simple_plot(x, y, ylabel, title, outpng):
+    plt.figure(figsize=(6.5,4.2))
+    plt.plot(df[x], df[y], marker="o")
+    plt.xlabel(x)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.grid(True, linewidth=0.5)
+    plt.tight_layout()
+    plt.savefig(PLOTS / outpng, dpi=140)
+    plt.close()
+
+simple_plot("procs","train_time","Time (s) ↓","Scaling: Time vs Processes","scaling_time.png")
+simple_plot("procs","speedup","Speedup ↑","Scaling: Speedup","scaling_speedup.png")
+simple_plot("procs","efficiency","Efficiency (×) ↑","Scaling: Efficiency","scaling_efficiency.png")
+
+print(f"✔ Saved: {PLOTS/'scaling_time.png'}, {PLOTS/'scaling_speedup.png'}, {PLOTS/'scaling_efficiency.png'}")
