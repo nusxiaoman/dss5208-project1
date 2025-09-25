@@ -113,79 +113,111 @@ relu,256,256,0.001,8,104.511,85.8499,119.6802,1.5109,0.1889
 
 ---
 
-## 6) What We Did to Improve the Result
+## 6) Delieverables 
+## Parameters Chosen
 
-1. **Even data storage via memmap shards** (`--npy_root`): each rank mmaps only its slice of train/test ⇒ fast, low-RAM, meets “stored nearly evenly”.
-2. **Chunked RMSE evaluation** (`--eval_block`): avoids giant allocations; test RMSE computed in parallel.
-3. **Subsampled R(θk)** (`--eval_sample`): frequent progress signal without full-dataset passes.
-4. **float32 everywhere** + **no-copy loads**: halves memory vs float64.
-5. **BLAS thread pinning** per rank: `OPENBLAS/MKL/NUMEXPR/OMP_NUM_THREADS=1` to avoid oversubscription.
-6. **Robust scripts (Windows)**: copy-and-retry around `model_final.npz` to avoid transient file locks.
+- **Activations (σ):** ReLU, Tanh, Sigmoid  
+- **Batch sizes (M):** 32, 64, 128, 256, 512  
+- **Hidden units (n) by (σ, M):**
+
+| Activation | M=32 | 64 | 128 | 256 | 512 |
+|---|---:|---:|---:|---:|---:|
+| **ReLU**    | 128 | 128 | 128 | 256 | 256 |
+| **Tanh**    |  64 |  64 | 128 | 128 | 128 |
+| **Sigmoid** |  64 |  64 |  64 | 128 | 128 |
+
+- **Common settings:** `lr=1e-3`, `epochs=1`, `seed=123`, `eval_every=1000`, `eval_sample=2e6`, `eval_block=100000`  
+- **Processes:** sweep at **P=4**; strong-scaling at **P=1,2,4,8**
 
 ---
 
-## 7) How to Reproduce
+## Training History (R(θₖ) vs k)
 
-### Environment
-- **Windows + MS-MPI (mpiexec)**, Python 3.13; packages: `numpy`, `pandas`, `matplotlib`, `mpi4py`.
-- Activate venv and install:
-  ```powershell
-  .\.venv\Scripts\Activate.ps1
-  python -m pip install --upgrade pip
-  python -m pip install -r requirements.txt
+Representative examples (full set in `/plots`):
 
-### Data prep (once)
+![ReLU, M=256, n=256, P=4](plots/trainhist_relu_bs256_n256_P4.png)
+![Tanh, M=128, n=128, P=4](plots/trainhist_tanh_bs128_n128_P4.png)
+![Sigmoid, M=512, n=128, P=4](plots/trainhist_sigmoid_bs512_n128_P4.png)
 
-Prepare the cleaned NPZ and export **memmap** shards (even storage). Skip a command if the artifact already exists.
+---
 
-```powershell
-# from repo root, venv active (.\.venv\Scripts\Activate.ps1)
+## RMSE (Train/Test) and Time (Sweep at P=4)
 
-# 1) Create cleaned NPZ from the raw CSV (run once)
-python .\data_prep.py `
-  --input_path .\nytaxi2022.csv `
-  --output_path .\nytaxi2022_cleaned.npz
+Top-5 overall (lowest test RMSE first; see `results/top5_overall.csv`):
 
-# 2) Export memory-mapped arrays from the NPZ (run once)
-python .\prep_memmap_from_npz.py `
-  --npz .\nytaxi2022_cleaned.npz `
-  --outdir .\memmap_data
-```
-### Preflight (one quick run)
-```powershell
-# (If needed) Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-Unblock-File .\sweep_debug.ps1
-.\sweep_debug.ps1
-```
-### σ×M Sweep (P=4)
-```powershell
-Unblock-File .\sweep.ps1
-.\sweep.ps1
-```
-### Strong scaling (P=1,2,4,8)
-```powershell
-Unblock-File .\scaling.ps1
-.\scaling.ps1
-```
+| activation | batch | hidden | lr    | procs | train_time (s) | rmse_train | rmse_test |
+|-----------:|------:|------:|-------|------:|---------------:|-----------:|----------:|
+| relu | 512 | 256 | 0.001 | 4 | 177.863 | 85.8184 | 119.6571 |
+| relu | 64  | 128 | 0.001 | 4 | 49.746  | 85.8283 | 119.6631 |
+| tanh | 32  |  64 | 0.001 | 4 | 67.749  | 85.8356 | 119.6677 |
+| relu | 256 | 256 | 0.001 | 4 | 60.513  | 85.8439 | 119.6749 |
+| relu | 256 | 256 | 0.001 | 4 | 62.335  | 85.8439 | 119.6749 |
 
-### Summaries & plots
-```powershell
-if (Test-Path .\summarize_results.py) { python .\summarize_results.py }
-if (Test-Path .\scaling_summary.py)   { python .\scaling_summary.py }
-```
-## 8) Files for Marking
+Summary plots:
 
-- Code: train_mpi.py, data_prep.py, prep_memmap_from_npz.py, plot_history.py, sweep.ps1, sweep_debug.ps1, scaling.ps1.
+![RMSE vs Batch (best per σ,M)](plots/rmse_vs_batch.png)
+![Time vs Batch (best per σ,M)](plots/time_vs_batch.png)
 
-- Histories: histories/history_*.csv.
+---
+## Final Outcome (Optimized Results)
 
-- Figures: plots/trainhist_*.png, plots/rmse_vs_batch.png, plots/time_vs_batch.png, plots/scaling_*.png.
+**Optimization target:** minimize test RMSE.
 
-- Tables: results/run_summary.csv, results/top5_overall.csv, results/scaling_table.csv.
+**Best overall (across all recorded runs):**
+- **Activation:** ReLU  
+- **Batch size (M):** 256  
+- **Hidden units (n):** 256  
+- **Processes (P):** 1  
+- **Training time:** 157.908 s  
+- **RMSE (train/test):** **85.8087 / 119.6477**  
 
-- Large/raw artifacts (*.csv, *.npz, *.npy, memmap_data/) are ignored by Git (see .gitignore).
+**Best within the P=4 sweep (σ × M at P=4):**
+- **Activation:** ReLU  
+- **Batch size (M):** 512  
+- **Hidden units (n):** 256  
+- **Processes (P):** 4  
+- **Training time:** 177.863 s  
+- **RMSE (train/test):** **85.8184 / 119.6571**
 
-## 9) Limitations & Future Work
+**Near-equivalent, much faster (P=4):**
+- **ReLU, M=64, n=128, P=4** → **RMSE (train/test): 85.8283 / 119.6631**, **time: 49.746 s**
+
+> Notes:
+> - Test RMSE varies slightly with P due to stochasticity and single-epoch training, but differences are small (±0.02).  
+> - The strong-scaling runs for **ReLU, M=256, n=256** showed time improvements up to P=4 (65.836 s) with diminishing returns at P=8 (104.511 s), while test RMSE remained in the ~119.65–119.68 range.
+
+---
+
+## Training Times for Different Numbers of Processes (Strong Scaling)
+
+Config shown: **ReLU, M=256, n=256**, P ∈ {1,2,4,8}. See `results/scaling_table.csv`.
+
+| procs | train_time (s) | speedup | efficiency |
+|-----:|----------------:|--------:|-----------:|
+| 1 | 157.908 | 1.000 | 1.000 |
+| 2 | 130.635 | 1.209 | 0.604 |
+| 4 | 65.836  | 2.399 | 0.600 |
+| 8 | 104.511 | 1.511 | 0.189 |
+
+Scaling figures:
+
+![Time vs Processes](plots/scaling_time.png)
+![Speedup](plots/scaling_speedup.png)
+![Efficiency](plots/scaling_efficiency.png)
+
+---
+
+## Efforts to Improve Results & Performance
+
+- **Even-storage (memmap) dataset layout:** split into `P` subarrays on disk and memory-map per rank → faster startup and lower RAM, consistent with project’s “stored nearly evenly” requirement.  
+- **Chunked RMSE computation:** evaluate in blocks (`--eval_block 100000`) to avoid large intermediate allocations and OOM on Windows.  
+- **Evaluation subsampling:** `--eval_sample 2e6` to keep eval stable while reducing wall time.  
+- **BLAS thread pinning:** `OPENBLAS_NUM_THREADS=1`, `MKL_NUM_THREADS=1`, etc., to avoid oversubscription across MPI ranks.  
+- **Deterministic seeds:** `--seed 123` for reproducibility across runs.  
+- **Parameter selection heuristic:** increased hidden units for larger batches/ReLU; smaller for sigmoid/tanh to balance capacity and runtime.  
+- **Windows-friendly scripts:** PowerShell sweep/scaling scripts with safeguards (cleanup, plotting, summary rebuilds).
+
+## 7) Limitations & Future Work
 
 - Single node: performance degrades past P=4 due to comms/memory contention; would revisit for multi-node (different MPI fabric).
 
