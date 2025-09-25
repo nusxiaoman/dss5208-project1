@@ -2,27 +2,32 @@
 __pycache__/
 *.pyc
 
-# BIG raw data - do not push
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# PowerShell execution cache (sometimes created)
+*.ps1.tmp
+
+# BIG raw/derived data - do not push
 nytaxi2022.csv
 nytaxi2022_cleaned.npz
 *.npz
 *.npy
 sample_data/
-
-# Model artifacts
-model_final.npz
-
-<<<<<<< Updated upstream
-# Ignore all CSVs by default, but keep results tables
-*.csv
-!results/*.csv
-=======
-# PowerShell execution cache (sometimes created)
-*.ps1.tmp
-
-histories/
-histories.local/
 memmap_data/
 memmap_data.local/
 data/
->>>>>>> Stashed changes
+
+# Training artifacts kept local
+model_final.npz
+history.csv
+histories/
+histories.local/
+tmp/
+
+# Ignore CSVs by default, but keep result tables
+*.csv
+!results/*.csv
+
+# Keep plots in version control (do NOT ignore plots/*.png)
